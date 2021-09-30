@@ -4,7 +4,7 @@ In order to install this program correctly, at least for Windows, please follow 
     1. Download from https://www.ffmpeg.org/download.html the latest version of FFMpeg for windowns, it's called like ffmpeg-n4.4-154-g79c114e1b2-win64-lgpl-4.4.zip or something.
     2. Extract the files somewhere smart and easy to reach.
 
-Now comes the slightly more tricky parts, where we add the applications in the /bin folder of what we downloaded to the Systems PATH variable;
+Now comes the slightly more tricky parts, where we add the applications in the /bin folder of what we downloaded to the System's PATH variable;
 
     3. In windows search type 'path' and click on 'Edit the system environment variables'
     4. Click on the button 'Environemnt Variables'
@@ -17,7 +17,7 @@ Now comes the slightly more tricky parts, where we add the applications in the /
 
 We can now check if what you have done actually worked;
 
-    11. Open CMD and enter ffmpeg;
+    11. Open CMD and enter ffmpeg
 
 If you get a nice big block of text saying lots of nice things then everything has worked.
 
