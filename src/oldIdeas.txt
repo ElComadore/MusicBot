@@ -1,0 +1,130 @@
+@client.command(pass_context=True, aliases=["j"])
+async def join(ctx):
+    if "ElComadore" not in ctx.message.author.name:
+        await ctx.send("You are not my master!\n I answer to Coën only for some reason._.")
+        return
+    await ctx.send("Attempting")
+    if ctx.author.voice:
+        channel = ctx.message.author.voice.channel
+        voice = await channel.connect()
+        await ctx.send("Success!")
+    else:
+        await ctx.send("Ur not in a voice channel there broski")
+
+
+@client.command(pass_context=True, aliases=["d", "disc"])
+async def disconnect(ctx):
+    if "ElComadore" not in ctx.message.author.name:
+        await ctx.send("You are not my master!\n I answer to Coën only for some reason._.")
+        return
+    if ctx.voice_client:
+        await ctx.guild.voice_client.disconnect()
+        await ctx.send("Disconnected")
+    else:
+        await ctx.send("Not connected to a voice channel dumbass")
+
+
+@client.command(pass_context=True)
+async def play(ctx):
+    if "ElComadore" not in ctx.message.author.name:
+        await ctx.send("You are not my master!\n I answer to Coën only for some reason._.")
+        return
+    if ctx.voice_client:
+        source = FFmpegPCMAudio('boop.wav')
+        voice = ctx.voice_client
+        voice.play(source)
+
+
+@client.command(pass_context=True, aliases=["s"])
+async def search(ctx):
+
+    if "ElComadore" not in ctx.message.author.name:
+        await ctx.send("You are not my master!\n I answer to Coën only for some reason._.")
+        return
+
+    keywords = ctx.message.system_content.split(' ')
+    keyword = ""
+
+    if len(keywords) == 1:
+        await ctx.send("Ya gotta actually give me a fookin search term ya monkey")
+        return
+    else:
+        keyword = keywords[1]
+        for i in range(2, len(keywords)):
+            keyword = keyword + ' ' + keywords[i]
+
+    videoSearch = VideosSearch(keyword, limit=5)
+
+    results = videoSearch.result(mode=ResultMode.dict)
+
+    searchEmbed = discord.Embed(title="Top 5 Results for " + keyword,
+                                description="Use the !choose command to select one, any other command will cancel the selection")
+
+    thumb = results['result'][0]['thumbnails'][0]['url']
+    searchEmbed.set_thumbnail(url=thumb)
+
+    numRes = len(results['result'])
+    if numRes > 5:
+        numRes = 5
+
+    for i in range(0, numRes):
+        searchEmbed.add_field(name=str(i+1) + ') ' + results['result'][i]['title'],
+                              value=results['result'][i]['link'], inline=False)
+
+    await ctx.send(embed=searchEmbed)
+
+
+@client.command(pass_context=True)
+async def choose(ctx):
+    mList = list()
+    async for message in ctx.channel.history(limit=10):
+        mList.append(message)
+
+    keywords = ctx.message.system_content.split(' ')
+    if len(keywords) == 1:
+        await ctx.send("Ya gotta choose something fuckwit")
+        return
+    if len(keywords) > 2:
+        await ctx.send("Are you being willfully obtuse or just imitating Patrick?")
+    if int(keywords[1]) not in range(0, len(mList)):
+        await ctx.send("Please for the love of god put in something valid")
+
+    for i in range(0, len(mList)):
+        if len(mList[i].embeds) > 0:
+            print("Found an embed")
+            choice = int(keywords[1])
+            url = mList[i].embeds[0].fields[choice - 1].value
+
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192'
+                }]
+            }
+
+            channel = ctx.message.author.voice.channel
+            voice = await channel.connect()
+            player = voice.play(source)
+
+
+            return
+        elif i == len(mList)-1:
+            await ctx.send("Nuffin to choose from in the last " + str(len(mList)) + " messages chief")
+            return
+    return
+
+ytdlopts = {
+    'format': 'bestaudio/best',
+    'outtmpl': 'downloads/%(extractor)s-%(id)s-%(title)s.%(ext)s',
+    'restrictfilenames': True,
+    'noplaylist': True,
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'auto',
+    'source_address': '0.0.0.0'  # ipv6 addresses cause issues sometimes
+}
