@@ -358,7 +358,5 @@ class Music(commands.Cog):
         else:
             await ctx.send("Nothing is playing you monkey")
 
-"""More random garbage"""
-
 setup(client)
 client.run(TOKEN)

@@ -17,4 +17,3 @@ for c in cmdList:
 
 print(cmdFixed)
 
-"""Random garbage"""
