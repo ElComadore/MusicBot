@@ -16,3 +16,5 @@ for c in cmdList:
     cmdFixed = cmdFixed + c
 
 print(cmdFixed)
+
+"""Random garbage"""
