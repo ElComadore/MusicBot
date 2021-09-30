@@ -96,7 +96,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
         embed = discord.Embed(title="Queued", description=data['title'])
         await ctx.send(embed=embed)
-        option = '-vn -sn -dn -ss ' + str(int(start_time))
+        option = '-vn -sn -dn -ss ' + str(start_time)
 
         if download:
             source = ytdl.prepare_filename(data)
@@ -163,6 +163,7 @@ class MusicPlayer:
             try:
                 async with timeout(1):
                     source = await self.broken.get()    # Get the dropped audio stream
+                    print("Saved!")
             except asyncio.TimeoutError:
                 try:
                     async with timeout(180):
@@ -199,10 +200,13 @@ class MusicPlayer:
             """Catching if we dropped from the socket below"""
             duration_played = duration_played + (time.time() - t)
             if duration_played < int(source_sound.data['duration']) - 5 and not self.skipping:
-                source['start_time'] = duration_played
+                source['start_time'] = int(duration_played)
                 await self.broken.put(source)
                 self.say_playing = False
+                self._guild.voice_client.stop()
+                source_sound.cleanup()
                 print(duration_played)
+
             else:
                 duration_played = 0
                 self.say_playing = True
@@ -357,6 +361,7 @@ class Music(commands.Cog):
             await ctx.send(embed=np)
         else:
             await ctx.send("Nothing is playing you monkey")
+
 
 setup(client)
 client.run(TOKEN)
