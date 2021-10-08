@@ -261,20 +261,30 @@ class Music(commands.Cog):
         video_list = await self.search_(ctx, search)
 
         if isinstance(video_list, list):
-            embed = None
-            if len(video_list) == 1:
-                embed = discord.Embed(title="Queued", description=video_list[0]['title'])
-            elif len(video_list) < 30:
+            if len(video_list) < 30:
                 embed = discord.Embed(title="Queueing " + str(len(video_list)) + " songs!")
+                thumb = video_list[0]['thumbnails'][0]['url']
             else:
                 embed = discord.Embed(title="Queueing " + str(len(video_list)) + " songs!", description="Now, you have just queued a rather latge number of songs and I am going to write a blog explaining that this was a horrible idea and may cause unknown side-effects. Please realise this is not an instant process, and that just because you are hearing music does not mean that all the songs have been added to the queue. Also there is currently no way to skip all songs in a playlist so you're gonna have to dc the bot:)")
-            thumb = video_list[0]['thumbnails'][0]['url']
+                thumb = video_list[0]['thumbnails'][0]['url']
             embed.set_thumbnail(url=thumb)
             await ctx.send(embed=embed)
             for videos in video_list:
                 source = await YTDLSource.create_source(ctx, videos['link'], loop=self.bot.loop, download=False)
                 player.song_list.append(source)
                 await player.queue.put(source)
+
+        elif video_list is not None:    # Requester made a choice of a video
+            embed = discord.Embed(title="Queued", description=video_list['title'])
+            thumb = video_list['thumbnails'][0]['url']
+
+            source = await YTDLSource.create_source(ctx, video_list['link'], loop=self.bot.loop, download=False)
+
+            player.song_list.append(source)
+            await player.queue.put(source)
+
+            embed.set_thumbnail(url=thumb)
+            await ctx.send(embed=embed)
         else:
             return
 
@@ -291,7 +301,7 @@ class Music(commands.Cog):
         else:
             results = VideosSearch(search, limit=5).result(mode=ResultMode.dict)      # Getting candidate videos
             if search in results['result'][0]['link']:          # Checking if we searched a link
-                return results['result'][0]['link']
+                return results['result'][0]
             else:
                 """Creating the embed for choices"""
                 search_embed = discord.Embed(title="Top 5 Results for " + search,
@@ -309,7 +319,7 @@ class Music(commands.Cog):
                 choice = await client.wait_for('message', timeout=30)
                 try:
                     choice_number = int(choice.content)
-                    return list(results['result'][choice_number - 1]['link'])
+                    return results['result'][choice_number - 1]
                 except ValueError:
                     await ctx.send("Choice terminated - that's not a number dumbass")
                     return None
