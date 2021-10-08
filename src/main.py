@@ -7,9 +7,8 @@ from async_timeout import timeout
 from functools import partial
 from youtube_dlc import *
 import youtube_dlc
-from youtubesearchpython import VideosSearch, ResultMode
+from youtubesearchpython import VideosSearch, ResultMode, Playlist
 import time
-from django.core.validators import URLValidator, ValidationError
 
 load_dotenv()
 
@@ -18,8 +17,8 @@ ytdlopts = {
     'default_search': 'auto',
     'novideo': True,
     'source_address': '0.0.0.0',
-    'noplaylist': True,
-    'quiet': True
+    'quiet': True,
+    'noplaylist': True
 }
 
 # ffmpegopts = {
@@ -59,34 +58,6 @@ class YTDLSource(discord.PCMVolumeTransformer):
     @classmethod
     async def create_source(cls, ctx, search: str, *, loop, download=False, start_time="0"):
         loop = loop or asyncio.get_event_loop()
-        validate = URLValidator()
-        try:
-            validate(search)
-            pass
-        except ValidationError:
-            """Searching for what search was put in"""
-            results = VideosSearch(search, limit=5).result(mode=ResultMode.dict)
-            searchEmbed = discord.Embed(title="Top 5 Results for " + search,
-                                        description="Just message then number of the result you want")
-
-            thumb = results['result'][0]['thumbnails'][0]['url']
-            searchEmbed.set_thumbnail(url=thumb)
-
-            for i in range(0, len(results['result'])):
-                searchEmbed.add_field(name=str(i+1) + ') ' + results['result'][i]['title'] + ' ' + results['result'][i]['duration'],
-                                      value=results['result'][i]['link'], inline=False)
-            await ctx.send(embed=searchEmbed)
-
-            choice = None
-            try:
-                choice = await client.wait_for('message', timeout=30)
-                if int(choice.content) not in range(1, len(results['result'])):
-                    await ctx.send("Choice terminated, number not in list dumbass")
-                    raise IndexError
-                search = results['result'][int(choice.content) - 1]['link']
-            except asyncio.TimeoutError:
-                await ctx.send("Choice timed out")
-                return
 
         to_run = partial(ytdl.extract_info, url=search, download=download)
         data = await loop.run_in_executor(None, to_run)
@@ -94,8 +65,6 @@ class YTDLSource(discord.PCMVolumeTransformer):
         if 'entries' in data:
             data = data['entries'][0]
 
-        embed = discord.Embed(title="Queued", description=data['title'])
-        await ctx.send(embed=embed)
         option = '-vn -sn -dn -ss ' + str(start_time)
 
         if download:
@@ -126,7 +95,8 @@ class MusicPlayer:
 
     """Is what actually contains the music loop and handles which music is playing"""
 
-    __slots__ = ('bot', '_guild', '_channel', '_cog', 'queue', 'next', 'current', 'np', 'volume', 'broken', 'say_playing', 'skipping')
+    __slots__ = ('bot', '_guild', '_channel', '_cog', 'queue', 'next', 'current', 'np', 'volume', 'broken',
+                 'say_playing', 'skipping', 'song_list', 'playlists')
 
     def __init__(self, ctx):
         """Standard parts of the discord we need to know"""
@@ -147,11 +117,12 @@ class MusicPlayer:
         self.current = None
         self.say_playing = True
         self.skipping = False
+        self.song_list = list()
 
         ctx.bot.loop.create_task(self.player_loop())
 
     async def player_loop(self):
-        """The unending loop of trying to get music from the Queue"""
+        """The unending loop of trying to get music from the Queues"""
         await self.bot.wait_until_ready()
         await self.bot.change_presence(activity=discord.Game(name="music, hopefully._."))
         duration_played = 0     # This is the janky fix
@@ -192,9 +163,9 @@ class MusicPlayer:
                                           after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set()))
 
             if self.say_playing:    # Says what is currently playing, if connection was not drop
-                embed = discord.Embed(title="Now playing", description=source_sound.title)
+                embed = discord.Embed(title="Now playing", description=source_sound.title,
+                                      thumbnail=source_sound.data['thumbnails'][0]['url'])
                 self.np = await self._channel.send(embed=embed)
-
             await self.next.wait()
 
             """Catching if we dropped from the socket below"""
@@ -213,6 +184,7 @@ class MusicPlayer:
                 self.np = None
                 self.current = None
                 self.skipping = False
+                self.song_list.pop(0)
 
             source_sound.cleanup()
 
@@ -286,8 +258,67 @@ class Music(commands.Cog):
                 return
 
         player = self.get_player(ctx)
-        source = await YTDLSource.create_source(ctx, search, loop=self.bot.loop, download=False)
-        await player.queue.put(source)
+        video_list = await self.search_(ctx, search)
+
+        if isinstance(video_list, list):
+            embed = None
+            if len(video_list) == 1:
+                embed = discord.Embed(title="Queued", description=video_list[0]['title'])
+            elif len(video_list) < 30:
+                embed = discord.Embed(title="Queueing " + str(len(video_list)) + " songs!")
+            else:
+                embed = discord.Embed(title="Queueing " + str(len(video_list)) + " songs!", description="Now, you have just queued a rather latge number of songs and I am going to write a blog explaining that this was a horrible idea and may cause unknown side-effects. Please realise this is not an instant process, and that just because you are hearing music does not mean that all the songs have been added to the queue. Also there is currently no way to skip all songs in a playlist so you're gonna have to dc the bot:)")
+            thumb = video_list[0]['thumbnails'][0]['url']
+            embed.set_thumbnail(url=thumb)
+            await ctx.send(embed=embed)
+            for videos in video_list:
+                source = await YTDLSource.create_source(ctx, videos['link'], loop=self.bot.loop, download=False)
+                player.song_list.append(source)
+                await player.queue.put(source)
+        else:
+            return
+
+    async def search_(self, ctx, search):
+        """The actual search for videos/playlists function"""
+
+        playlist_id = '?list=PL'        # all playlists have this I'm pretty sure
+
+        if playlist_id in search:
+            playlist = Playlist(search)
+            while playlist.hasMoreVideos:
+                playlist.getNextVideos()
+            return playlist.videos
+        else:
+            results = VideosSearch(search, limit=5).result(mode=ResultMode.dict)      # Getting candidate videos
+            if search in results['result'][0]['link']:          # Checking if we searched a link
+                return results['result'][0]['link']
+            else:
+                """Creating the embed for choices"""
+                search_embed = discord.Embed(title="Top 5 Results for " + search,
+                                             description="Just message then number of the result you want")
+                thumb = results['result'][0]['thumbnails'][0]['url']
+                search_embed.set_thumbnail(url=thumb)
+
+            for i in range(0, len(results['result'])):
+                search_embed.add_field(name=str(i+1) + ') ' + results['result'][i]['title'] + ' ' + results['result'][i]['duration'],
+                                       value=results['result'][i]['link'], inline=False)
+            await ctx.send(embed=search_embed)
+
+            """Getting selection from user"""
+            try:
+                choice = await client.wait_for('message', timeout=30)
+                try:
+                    choice_number = int(choice.content)
+                    return list(results['result'][choice_number - 1]['link'])
+                except ValueError:
+                    await ctx.send("Choice terminated - that's not a number dumbass")
+                    return None
+                except IndexError:
+                    await ctx.send("Choice terminated - that's not a valid choice dumbass")
+                    return None
+            except asyncio.TimeoutError:
+                await ctx.send("Choice timed out")
+                return None
 
     @commands.command(name='pause', description="Pauses current song!")
     async def pause_(self, ctx: discord.ext.commands.Context):
@@ -361,6 +392,22 @@ class Music(commands.Cog):
             await ctx.send(embed=np)
         else:
             await ctx.send("Nothing is playing you monkey")
+
+    @commands.command(name='songlist', aliases=['sl', 'queue', 'q'])
+    async def song_list_(self, ctx: discord.ext.commands.Context):
+        queue_embed = discord.Embed(title='Song Queue', description='Songs coming up')
+        player = self.get_player(ctx)
+
+        if len(player.song_list) == 0:
+            await ctx.send("There's nothing in the song list you nonce")
+            return
+
+        i = 0
+        for data in self.get_player(ctx).song_list:
+            queue_embed.add_field(name=str(i+1) + ') ' + data['title'], value=data['webpage_url'], inline=False)
+            i += 1
+
+        await ctx.send(embed=queue_embed)
 
 
 setup(client)
