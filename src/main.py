@@ -96,7 +96,7 @@ class MusicPlayer:
     """Is what actually contains the music loop and handles which music is playing"""
 
     __slots__ = ('bot', '_guild', '_channel', '_cog', 'queue', 'next', 'current', 'np', 'volume', 'broken',
-                 'say_playing', 'skipping', 'song_list', 'playlists')
+                 'say_playing', 'skipping', 'song_list')
 
     def __init__(self, ctx):
         """Standard parts of the discord we need to know"""
@@ -124,7 +124,7 @@ class MusicPlayer:
     async def player_loop(self):
         """The unending loop of trying to get music from the Queues"""
         await self.bot.wait_until_ready()
-        await self.bot.change_presence(activity=discord.Game(name="music, hopefully._."))
+        await self.bot.change_presence(activity=discord.Game(name="playlists! Only bangers ofc ofc"))
         duration_played = 0     # This is the janky fix
 
         while not self.bot.is_closed():
@@ -277,13 +277,13 @@ class Music(commands.Cog):
         elif video_list is not None:    # Requester made a choice of a video
             embed = discord.Embed(title="Queued", description=video_list['title'])
             thumb = video_list['thumbnails'][0]['url']
+            embed.set_thumbnail(url=thumb)
 
             source = await YTDLSource.create_source(ctx, video_list['link'], loop=self.bot.loop, download=False)
 
             player.song_list.append(source)
             await player.queue.put(source)
 
-            embed.set_thumbnail(url=thumb)
             await ctx.send(embed=embed)
         else:
             return
@@ -295,8 +295,12 @@ class Music(commands.Cog):
 
         if playlist_id in search:
             playlist = Playlist(search)
-            while playlist.hasMoreVideos:
-                playlist.getNextVideos()
+            try:
+                while playlist.hasMoreVideos:
+                    playlist.getNextVideos()
+            except TypeError as t:
+                ctx.send("Something went wrong with getting the playlist\n" + str(t))
+                return
             return playlist.videos
         else:
             results = VideosSearch(search, limit=5).result(mode=ResultMode.dict)      # Getting candidate videos
@@ -382,7 +386,7 @@ class Music(commands.Cog):
     async def kill_(self, ctx: discord.ext.commands.Context):
         if "ElComadore" in ctx.author.name:
             await ctx.send("Arghh, ya got me...")
-            await client.logout()
+            await client.close()
             exit(1)
         else:
             await ctx.send("Implying you have permission to kill me xdd")
@@ -412,13 +416,20 @@ class Music(commands.Cog):
             await ctx.send("There's nothing in the song list you nonce")
             return
 
-        i = 0
-        for data in self.get_player(ctx).song_list:
-            queue_embed.add_field(name=str(i+1) + ') ' + data['title'], value=data['webpage_url'], inline=False)
-            i += 1
+        num_songs = 10
+        if num_songs > len(player.song_list):
+            num_songs = len(player.song_list)
+
+        for i in range(0, num_songs):
+            queue_embed.add_field(name=str(i+1) + ') ' + player.song_list[i]['title'], value=player.song_list[i]['webpage_url'], inline=False)
+
+        if len(player.song_list) > 10:
+            queue_embed.add_field(name="There are " + str(len(player.song_list) - 10) + " more songs!", value="Omg so many songs!", inline=False)
 
         await ctx.send(embed=queue_embed)
 
 
 setup(client)
 client.run(TOKEN)
+
+exit(1)
