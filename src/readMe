@@ -1,13 +1,13 @@
 Alright, so, to use this you are going to need to do a bit of setup the first time. Some of the things you need to do are relatively easy, like downloading the packages or whatever. But there is one major sticking point which I will explain how to overcome first; how to install FFMpeg which is the audio encoding software used for playing audio (naturally).
 
 In order to install this program correctly, at least for Windows, please follow the instructions below;
-    1. Download from https://www.ffmpeg.org/download.html the latest version of FFMpeg for windowns, it's called like ffmpeg-n4.4-154-g79c114e1b2-win64-lgpl-4.4.zip or something.
+    1. Download from https://www.ffmpeg.org/download.html the latest version of FFMpeg for Windows, it's called like ffmpeg-n4.4-154-g79c114e1b2-win64-lgpl-4.4.zip or something.
     2. Extract the files somewhere smart and easy to reach.
 
 Now comes the slightly more tricky parts, where we add the applications in the /bin folder of what we downloaded to the System's PATH variable;
 
     3. In windows search type 'path' and click on 'Edit the system environment variables'
-    4. Click on the button 'Environemnt Variables'
+    4. Click on the button 'Environment Variables'
     5. In the bottom box called 'System Variables' find the variable called 'Path'
     6. Highlight that item and click the button labeled 'Edit'/ Double click the item
     7. Now go open the /bin folder of what we downloaded, right click on the address bar at the top and copy the path
@@ -31,6 +31,6 @@ Now with the big messy portion out of the way, you need make sure the following 
     django.py - For doing something really stupid that I do, I dont actually think I need this to be honest
 
 The last thing to do, is that in MusicBot/src, we need to create a file with the token in it.
-Just create a file named '.env', and type 'DISCORD_TOKEN = ...' where the ellipses are replaced by the token that I put in the music request channel (check the pinned comments), and without any qoute marks naturally.
+Just create a file named '.env', and type 'DISCORD_TOKEN = ...' where the ellipses are replaced by the token that I put in the music request channel (check the pinned comments), and without any quote marks naturally.
 
 And there you should have it! You will get a few error messages, but it should be fine to just run, and if anything breaks just strangle the programme and resuscitate him, he'll be fine.
