@@ -299,13 +299,17 @@ class Music(commands.Cog):
                 while playlist.hasMoreVideos:
                     playlist.getNextVideos()
             except TypeError as t:
-                ctx.send("Something went wrong with getting the playlist\n" + str(t))
-                return
+                await ctx.send("Something went wrong with getting the playlist\n" + str(t))
+                return None
             return playlist.videos
         else:
             results = VideosSearch(search, limit=5).result(mode=ResultMode.dict)      # Getting candidate videos
-            if search in results['result'][0]['link']:          # Checking if we searched a link
+            if len(results['result']) == 0:
+                await ctx.send("Got no search results there for you chief")
+                return None
+            elif results['result'][0]['link'] in search:          # Checking if we searched a link
                 return results['result'][0]
+
             else:
                 """Creating the embed for choices"""
                 search_embed = discord.Embed(title="Top 5 Results for " + search,
