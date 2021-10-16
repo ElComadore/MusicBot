@@ -96,7 +96,7 @@ class MusicPlayer:
     """Is what actually contains the music loop and handles which music is playing"""
 
     __slots__ = ('bot', '_guild', '_channel', '_cog', 'queue', 'next', 'current', 'np', 'volume', 'broken',
-                 'say_playing', 'skipping', 'song_list')
+                 'say_playing', 'skipping', 'song_list', 'repeat', 'song_to_repeat')
 
     def __init__(self, ctx):
         """Standard parts of the discord we need to know"""
@@ -118,6 +118,8 @@ class MusicPlayer:
         self.say_playing = True
         self.skipping = False
         self.song_list = list()
+        self.repeat = False
+        self.song_to_repeat = None
 
         ctx.bot.loop.create_task(self.player_loop())
 
@@ -128,19 +130,24 @@ class MusicPlayer:
         duration_played = 0     # This is the janky fix
 
         while not self.bot.is_closed():
-            source_sound = None
             self.next.clear()
+            source_sound = None
 
             try:
-                async with timeout(1):
+                async with timeout(0.1):
                     source = await self.broken.get()    # Get the dropped audio stream
                     print("Saved!")
             except asyncio.TimeoutError:
-                try:
-                    async with timeout(180):
-                        source = await self.queue.get()     # Get the next song, given no dropped sources
-                except asyncio.TimeoutError:
-                    return self.destroy(self._guild)
+                if self.repeat:                         # Repeat the current song!
+                    source = self.song_to_repeat
+                    self.say_playing = False
+                else:
+                    try:
+                        async with timeout(180):
+                            source = await self.queue.get()     # Get the next song, given no dropped sources
+                            self.song_to_repeat = source
+                    except asyncio.TimeoutError:
+                        return self.destroy(self._guild)
 
             if not isinstance(source, YTDLSource):
                 try:
@@ -157,7 +164,7 @@ class MusicPlayer:
             source_sound.volume = self.volume
             self.current = source_sound
 
-            t = time.time()     # Time for reference later
+            t = time.time()     # Time for later reference
 
             self._guild.voice_client.play(source_sound,
                                           after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set()))
@@ -177,6 +184,9 @@ class MusicPlayer:
                 self._guild.voice_client.stop()
                 source_sound.cleanup()
                 print(duration_played)
+
+            elif self.repeat:
+                duration_played = 0
 
             else:
                 duration_played = 0
@@ -264,11 +274,15 @@ class Music(commands.Cog):
             if len(video_list) < 30:
                 embed = discord.Embed(title="Queueing " + str(len(video_list)) + " songs!")
                 thumb = video_list[0]['thumbnails'][0]['url']
+
             else:
-                embed = discord.Embed(title="Queueing " + str(len(video_list)) + " songs!", description="Now, you have just queued a rather latge number of songs and I am going to write a blog explaining that this was a horrible idea and may cause unknown side-effects. Please realise this is not an instant process, and that just because you are hearing music does not mean that all the songs have been added to the queue. Also there is currently no way to skip all songs in a playlist so you're gonna have to dc the bot:)")
+                embed = discord.Embed(title="Queueing " + str(len(video_list)) + " songs!",
+                                      description="Now, you have just queued a rather latge number of songs and I am going to write a blog explaining that this was a horrible idea and may cause unknown side-effects. Please realise this is not an instant process, and that just because you are hearing music does not mean that all the songs have been added to the queue. Also there is currently no way to skip all songs in a playlist so you're gonna have to dc the bot:)")
                 thumb = video_list[0]['thumbnails'][0]['url']
+
             embed.set_thumbnail(url=thumb)
             await ctx.send(embed=embed)
+
             for videos in video_list:
                 source = await YTDLSource.create_source(ctx, videos['link'], loop=self.bot.loop, download=False)
                 player.song_list.append(source)
@@ -288,10 +302,12 @@ class Music(commands.Cog):
         else:
             return
 
-    async def search_(self, ctx, search):
+    @staticmethod
+    async def search_(ctx, search):
         """The actual search for videos/playlists function"""
 
         playlist_id = '?list=PL'        # all playlists have this I'm pretty sure
+        channel_id = 'ab_channel'
 
         if playlist_id in search:
             playlist = Playlist(search)
@@ -306,6 +322,8 @@ class Music(commands.Cog):
             results = VideosSearch(search, limit=5).result(mode=ResultMode.dict)      # Getting candidate videos
             if len(results['result']) == 0:
                 await ctx.send("Got no search results there for you chief")
+                if channel_id in search:
+                    await ctx.send('Try searching without the channel portion of the url')
                 return None
             elif results['result'][0]['link'] in search:          # Checking if we searched a link
                 return results['result'][0]
@@ -431,6 +449,15 @@ class Music(commands.Cog):
             queue_embed.add_field(name="There are " + str(len(player.song_list) - 10) + " more songs!", value="Omg so many songs!", inline=False)
 
         await ctx.send(embed=queue_embed)
+
+    @commands.command(name='repeat', aliases=['r', 'playitagainsam'], description='Repeats the current song using magic!')
+    async def repeat_(self, ctx: discord.ext.commands.Context):
+        player = self.get_player(ctx)
+        player.repeat = ~player.repeat
+        if player.repeat:
+            await ctx.send('Now repeating current song!')
+        else:
+            await ctx.send('No longer repeating')
 
 
 setup(client)
