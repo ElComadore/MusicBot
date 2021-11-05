@@ -29,6 +29,7 @@ Now with the big messy portion out of the way, you need make sure the following 
     youtube_dlc.py - Is what gets our beautiful streams for us
     youtubesearchpython.py - Is what finds all those beautiful search options for us
     django.py - For doing something really stupid that I do, I dont actually think I need this to be honest
+    pythonNaCl.py - Just for discord package dependency
 
 The last thing to do, is that in MusicBot/src, we need to create a file with the token in it.
 Just create a file named '.env', and type 'DISCORD_TOKEN = ...' where the ellipses are replaced by the token that I put in the music request channel (check the pinned comments), and without any quote marks naturally.
