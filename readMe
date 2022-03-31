@@ -21,6 +21,7 @@ We can now check if what you have done actually worked;
 
 If you get a nice big block of text saying lots of nice things then everything has worked.
 
+
 If you gt a message saying that such an application does not exist then you must have scuffed something. In that case, just try and repeat the above process and make sure that the 'Path' variable was actually updated.
 
 Now with the big messy portion out of the way, you need make sure the following packages for python are installed;
@@ -28,7 +29,6 @@ Now with the big messy portion out of the way, you need make sure the following 
     dotenv.py - For loading in the token from an .env file (not strictly necessary, but allows me to not have the token in the code itself)
     youtube_dlc.py - Is what gets our beautiful streams for us
     youtubesearchpython.py - Is what finds all those beautiful search options for us
-    django.py - For doing something really stupid that I do, I dont actually think I need this to be honest
     pythonNaCl.py - Just for discord package dependency
 
 The last thing to do, is that in MusicBot/src, we need to create a file with the token in it.

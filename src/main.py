@@ -331,7 +331,7 @@ class Music(commands.Cog):
             else:
                 """Creating the embed for choices"""
                 search_embed = discord.Embed(title="Top 5 Results for " + search,
-                                             description="Just message then number of the result you want")
+                                             description="Just message the number of the result you want")
                 thumb = results['result'][0]['thumbnails'][0]['url']
                 search_embed.set_thumbnail(url=thumb)
 
