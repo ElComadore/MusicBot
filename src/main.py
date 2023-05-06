@@ -26,15 +26,16 @@ ytdlopts = {
 #  'options': '-vn -sn -dn -ignore_unknown'
 # }
 
+intent = discord.Intents.all()
 
 TOKEN = os.getenv('DISCORD_TOKEN')
-client = commands.Bot(command_prefix='!')
+client = commands.Bot(command_prefix='!', intents=intent)
 ytdl = YoutubeDL(ytdlopts)
 youtube_dlc.utils.bug_reports_message = lambda: ''
 
 
-def setup(bot):
-    bot.add_cog(Music(bot))
+async def setup(bot):
+    await bot.add_cog(Music(bot))
 
 
 @client.event
@@ -70,7 +71,10 @@ class YTDLSource(discord.PCMVolumeTransformer):
         if download:
             source = ytdl.prepare_filename(data)
         else:
-            return {'webpage_url': data['webpage_url'], 'requester': ctx.author, 'title': data['title'], 'start_time': 0}
+            return {'webpage_url': data['webpage_url'],
+                    'requester': ctx.author,
+                    'title': data['title'],
+                    'start_time': 0}
 
         return cls(discord.FFmpegPCMAudio(source, before_options='-nostdin',
                                           options=option),
@@ -170,8 +174,7 @@ class MusicPlayer:
                                           after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set()))
 
             if self.say_playing:    # Says what is currently playing, if connection was not drop
-                embed = discord.Embed(title="Now playing", description=source_sound.title,
-                                      thumbnail=source_sound.data['thumbnails'][0]['url'])
+                embed = discord.Embed(title="Now playing", description=source_sound.title)
                 self.np = await self._channel.send(embed=embed)
             await self.next.wait()
 
@@ -227,6 +230,10 @@ class Music(commands.Cog):
 
         return player
 
+    @commands.command(name='ping', description="returns a ping")
+    async def ping_(self, ctx: discord.ext.commands.Context):
+        await ctx.send("Ping")
+
     @commands.command(name='join', aliases=['connect', 'j'], description="Joins your channel!")
     async def connect_(self, ctx: discord.ext.commands.Context, *, channel: discord.VoiceChannel = None):
         if not channel:
@@ -250,14 +257,14 @@ class Music(commands.Cog):
         else:
             try:
                 await channel.connect()
-            except asyncio.TimeoutError:
+                await ctx.send(channel.name + " joined!")
+            except Exception as e:
                 await ctx.send('Cannae connect in time capn')
-
-        await ctx.send(channel.name + " joined!")
+                print(e)
 
     @commands.command(name='play', aliases=['p'], description="Searches for query and plays first result!")
     async def play_(self, ctx: discord.ext.commands.Context, *, search: str):
-        await ctx.trigger_typing()
+        await ctx.typing()
 
         vc = ctx.voice_client
 
@@ -277,7 +284,13 @@ class Music(commands.Cog):
 
             else:
                 embed = discord.Embed(title="Queueing " + str(len(video_list)) + " songs!",
-                                      description="Now, you have just queued a rather latge number of songs and I am going to write a blog explaining that this was a horrible idea and may cause unknown side-effects. Please realise this is not an instant process, and that just because you are hearing music does not mean that all the songs have been added to the queue. Also there is currently no way to skip all songs in a playlist so you're gonna have to dc the bot:)")
+                                      description="""Now, you have just queued a rather large number of songs and I am 
+                                                  going to write a blog explaining that this was a horrible idea and 
+                                                  may cause unknown side-effects. Please realise this is not an 
+                                                  instant process, and that just because you are hearing music does 
+                                                  not mean that all the songs have been added to the queue. Also 
+                                                  there is currently no way to skip all songs in a playlist so you're 
+                                                  gonna have to dc the bot:)""")
                 thumb = video_list[0]['thumbnails'][0]['url']
 
             embed.set_thumbnail(url=thumb)
@@ -289,16 +302,22 @@ class Music(commands.Cog):
                 await player.queue.put(source)
 
         elif video_list is not None:    # Requester made a choice of a video
+            source = None
+
             embed = discord.Embed(title="Queued", description=video_list['title'])
             thumb = video_list['thumbnails'][0]['url']
             embed.set_thumbnail(url=thumb)
 
-            source = await YTDLSource.create_source(ctx, video_list['link'], loop=self.bot.loop, download=False)
+            try:
+                source = await YTDLSource.create_source(ctx, video_list['link'], loop=self.bot.loop, download=False)
+            except Exception as e:
+                await ctx.send("There was an issue trying to queue this song; it may be age restricted!")
 
-            player.song_list.append(source)
-            await player.queue.put(source)
+            if source is not None:
+                player.song_list.append(source)
+                await player.queue.put(source)
 
-            await ctx.send(embed=embed)
+                await ctx.send(embed=embed)
         else:
             return
 
@@ -308,6 +327,8 @@ class Music(commands.Cog):
 
         playlist_id = '?list=PL'        # all playlists have this I'm pretty sure
         channel_id = 'ab_channel'
+
+        print("searching")
 
         if playlist_id in search:
             playlist = Playlist(search)
@@ -381,14 +402,16 @@ class Music(commands.Cog):
         vc.resume()
         await ctx.send("Resumed!")
 
-    @commands.command(name='disconnect', aliases=['d', 'disc', 'leave'], description="Leaves current channel, destroying the queue!")
+    @commands.command(name='disconnect', aliases=['d', 'disc', 'leave'],
+                      description="Leaves current channel, destroying the queue!")
     async def disconnect_(self, ctx: discord.ext.commands.Context):
         vc = ctx.voice_client
 
         if not vc:
-            return await ctx.send("Bruh._., I'm not even fucking connected. Like come the fuck on this isn't funny. Stop it, get some help")
+            return await ctx.send("Bruh._., I'm not even fucking connected. "
+                                  "Like come the fuck on this isn't funny. Stop it, get some help")
 
-        await vc.disconnect()
+        await vc.disconnect(force=True)
         await self.cleanup(ctx.guild)
 
     @commands.command(name='skip', aliases=['s', 'next'], description="Skips current song!")
@@ -443,14 +466,17 @@ class Music(commands.Cog):
             num_songs = len(player.song_list)
 
         for i in range(0, num_songs):
-            queue_embed.add_field(name=str(i+1) + ') ' + player.song_list[i]['title'], value=player.song_list[i]['webpage_url'], inline=False)
+            queue_embed.add_field(name=str(i+1) + ') ' + player.song_list[i]['title'],
+                                  value=player.song_list[i]['webpage_url'], inline=False)
 
         if len(player.song_list) > 10:
-            queue_embed.add_field(name="There are " + str(len(player.song_list) - 10) + " more songs!", value="Omg so many songs!", inline=False)
+            queue_embed.add_field(name="There are " + str(len(player.song_list) - 10) + " more songs!",
+                                  value="Omg so many songs!", inline=False)
 
         await ctx.send(embed=queue_embed)
 
-    @commands.command(name='repeat', aliases=['r', 'playitagainsam'], description='Repeats the current song using magic!')
+    @commands.command(name='repeat', aliases=['r', 'playitagainsam'],
+                      description='Repeats the current song using magic!')
     async def repeat_(self, ctx: discord.ext.commands.Context):
         player = self.get_player(ctx)
         player.repeat = ~player.repeat
@@ -460,7 +486,6 @@ class Music(commands.Cog):
             await ctx.send('No longer repeating')
 
 
-setup(client)
-client.run(TOKEN)
-
+asyncio.run(setup(client))
+asyncio.run(client.start(TOKEN))
 exit(1)

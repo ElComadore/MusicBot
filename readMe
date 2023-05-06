@@ -22,7 +22,7 @@ We can now check if what you have done actually worked;
 If you get a nice big block of text saying lots of nice things then everything has worked.
 
 
-If you gt a message saying that such an application does not exist then you must have scuffed something. In that case, just try and repeat the above process and make sure that the 'Path' variable was actually updated.
+If you get a message saying that such an application does not exist then you must have scuffed something. In that case, just try and repeat the above process and make sure that the 'Path' variable was actually updated.
 
 Now with the big messy portion out of the way, you need make sure the following packages for python are installed;
     discord.py - The base of all this code
